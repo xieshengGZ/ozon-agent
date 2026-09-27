@@ -4,6 +4,9 @@ services:
     ports:
       - "8501:8501"
     env_file: .env
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1  # 避免在宿主机 app/ 目录下生成 __pycache__
     volumes:
+      - ./app:/app/app   # 代码挂载：改代码不用重新 build，Streamlit 会自动检测
       - ./data:/app/data
     restart: unless-stopped
