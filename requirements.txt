@@ -1,0 +1,6 @@
+crewai>=0.80
+openai>=1.40
+SQLAlchemy>=2.0
+streamlit>=1.36
+pydantic-settings>=2.3
+Pillow>=10.0
