@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     database_url: str | None = None
     upload_dir: str = "data/uploads"
 
+    # 后台登录密码（Streamlit 页面访问口令；留空则拒绝所有访问）
+    app_password: str = ""
+
     @property
     def db_url(self) -> str:
         return self.database_url or f"sqlite:///{BASE_DIR / 'data' / 'app.db'}"

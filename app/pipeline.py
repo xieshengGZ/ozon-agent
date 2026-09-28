@@ -56,3 +56,16 @@ def review_task(task_id: int, approved: bool) -> None:
         task = s.get(ListingTask, task_id)
         task.status = TaskStatus.APPROVED if approved else TaskStatus.REJECTED
         s.commit()
+
+
+def retry_task(task_id: int) -> None:
+    """失败重试：清空旧产物与错误，状态复位，由调用方重新执行流水线。"""
+    init_db()
+    with SessionLocal() as s:
+        task = s.get(ListingTask, task_id)
+        task.status = TaskStatus.CREATED
+        task.vision_result = None
+        task.selling_points = None
+        task.listing = None
+        task.error = None
+        s.commit()
