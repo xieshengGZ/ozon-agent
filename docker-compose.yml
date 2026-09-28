@@ -1,6 +1,8 @@
+# 线上：docker load 镜像后 docker compose up -d
+# 开发：docker build -t ozon-agent:latest . && docker save ozon-agent:latest | gzip > /nas/ozon-agent.tar.gz
 services:
   app:
-    build: .
+    image: ozon-agent:latest
     ports:
       - "8501:8501"
     env_file: .env

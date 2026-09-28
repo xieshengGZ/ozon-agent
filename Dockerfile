@@ -6,7 +6,7 @@ COPY requirements.txt .
 # 阿里云服务器走国内镜像加速；海外环境去掉 -i 参数即可
 RUN pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
-COPY app ./app
+# 镜像不含业务代码：运行时由 docker-compose 挂载 ./app 提供
 RUN mkdir -p data
 
 EXPOSE 8501
