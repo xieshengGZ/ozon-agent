@@ -10,7 +10,9 @@ class TaskStatus(str, enum.Enum):
     CREATED = "created"                    # 已上传，待执行
     ANALYZING = "analyzing"                # 流水线执行中（解析→卖点→文案）
     PENDING_REVIEW = "pending_review"      # 等待人工审核
-    APPROVED = "approved"                  # 审核通过（后续切片：生图、上架）
+    IMAGE_GENERATING = "image_generating"  # 审核通过，生成 Ozon 主图中
+    COMPLETED = "completed"                # 主图已生成，全流程完成
+    APPROVED = "approved"                  # 旧状态：审核通过但未生成主图（兼容历史数据）
     REJECTED = "rejected"                  # 审核退回
     FAILED = "failed"                      # 流水线执行失败
 
@@ -37,5 +39,10 @@ class ListingTask(Base):
     vision_result: Mapped[str | None] = mapped_column(Text)    # 图像解析
     selling_points: Mapped[str | None] = mapped_column(Text)   # 卖点
     listing: Mapped[str | None] = mapped_column(Text)          # 俄语 Listing
+    image_url: Mapped[str | None] = mapped_column(String(1024))  # 通义万相生成的 Ozon 主图 URL
+
+    # Ozon 上架
+    ozon_task_id: Mapped[str | None] = mapped_column(String(128))   # Ozon 导入任务 ID
+    ozon_status: Mapped[str | None] = mapped_column(String(32))     # pending / success / failed
 
     error: Mapped[str | None] = mapped_column(Text)

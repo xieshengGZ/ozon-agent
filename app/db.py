@@ -20,3 +20,13 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    # 轻量迁移：为已有表补充新列（SQLite 不支持自动加列）
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(listing_tasks)")}
+        if "image_url" not in cols:
+            conn.exec_driver_sql("ALTER TABLE listing_tasks ADD COLUMN image_url VARCHAR(1024)")
+        if "ozon_task_id" not in cols:
+            conn.exec_driver_sql("ALTER TABLE listing_tasks ADD COLUMN ozon_task_id VARCHAR(128)")
+        if "ozon_status" not in cols:
+            conn.exec_driver_sql("ALTER TABLE listing_tasks ADD COLUMN ozon_status VARCHAR(32)")
+        conn.commit()

@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     # 后台登录密码（Streamlit 页面访问口令；留空则拒绝所有访问）
     app_password: str = ""
 
+    # Ozon Seller API（上架用，留空则不显示上架按钮）
+    ozon_client_id: str = ""
+    ozon_api_key: str = ""
+    ozon_base_url: str = "https://api-seller.ozon.ru"
+    # 售价 = 采购价(CNY) × markup × cny_to_rub
+    ozon_price_markup: float = 2.0
+    ozon_cny_to_rub: float = 12.5
+
     @property
     def db_url(self) -> str:
         return self.database_url or f"sqlite:///{BASE_DIR / 'data' / 'app.db'}"

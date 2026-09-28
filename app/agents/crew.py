@@ -4,6 +4,20 @@ from crewai import Agent, Crew, LLM, Process, Task
 from ..config import settings
 from ..llm import extract_json
 
+# ---- 各步骤默认提示词模板（可用 {vision} {purchase_price} {weight_g} 占位） ----
+SELLING_PROMPT_TEMPLATE = (
+    "商品图像解析结果：{vision}\n"
+    "采购价：{purchase_price} 元，重量：{weight_g} 克。\n"
+    "请提炼 5-8 条卖点，每条包含：中文标题、一句俄语卖点短句、支撑理由。"
+    "只输出 JSON 数组，字段：title_cn, sentence_ru, reason。"
+)
+
+LISTING_PROMPT_TEMPLATE = (
+    "基于图像解析结果 {vision} 和上面提炼的卖点，生成 Ozon 上架资料。\n"
+    "要求：标题不超过 200 字符；描述自然融入卖点；关键词 8-12 个；"
+    "类目属性给出建议键值对。只输出 JSON。"
+)
+
 
 def _llm() -> LLM:
     # CrewAI 通过 litellm 走 OpenAI 兼容端点，DashScope 与百炼其他模型可直接替换
@@ -15,8 +29,14 @@ def _llm() -> LLM:
     )
 
 
-def run_text_crew(vision: dict, purchase_price: float, weight_g: int) -> tuple[list, dict]:
-    """输入图像解析结果，返回 (卖点列表, 俄语Listing)。"""
+def run_text_crew(
+    vision: dict,
+    purchase_price: float,
+    weight_g: int,
+    selling_prompt: str | None = None,
+    listing_prompt: str | None = None,
+) -> tuple[list, dict]:
+    """输入图像解析结果，返回 (卖点列表, 俄语Listing)。prompt 可覆盖默认模板。"""
     selling_agent = Agent(
         role="Ozon 卖点挖掘专家",
         goal="站在俄罗斯 Ozon 买家视角，提炼能促成下单的商品卖点",
@@ -32,22 +52,20 @@ def run_text_crew(vision: dict, purchase_price: float, weight_g: int) -> tuple[l
         verbose=False,
     )
 
+    selling_desc = (selling_prompt or SELLING_PROMPT_TEMPLATE).format(
+        vision=vision, purchase_price=purchase_price, weight_g=weight_g
+    )
+    listing_desc = (listing_prompt or LISTING_PROMPT_TEMPLATE).format(
+        vision=vision, purchase_price=purchase_price, weight_g=weight_g
+    )
+
     selling_task = Task(
-        description=(
-            f"商品图像解析结果：{vision}\n"
-            f"采购价：{purchase_price} 元，重量：{weight_g} 克。\n"
-            "请提炼 5-8 条卖点，每条包含：中文标题、一句俄语卖点短句、支撑理由。"
-            "只输出 JSON 数组，字段：title_cn, sentence_ru, reason。"
-        ),
+        description=selling_desc,
         expected_output="JSON 数组：[{title_cn, sentence_ru, reason}, ...]",
         agent=selling_agent,
     )
     listing_task = Task(
-        description=(
-            f"基于图像解析结果 {vision} 和上面提炼的卖点，生成 Ozon 上架资料。\n"
-            "要求：标题不超过 200 字符；描述自然融入卖点；关键词 8-12 个；"
-            "类目属性给出建议键值对。只输出 JSON。"
-        ),
+        description=listing_desc,
         expected_output=(
             "JSON 对象：{title_ru, description_ru, keywords_ru: [], "
             "category_suggestion, attributes: {}}"

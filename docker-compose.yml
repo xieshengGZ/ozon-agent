@@ -1,5 +1,5 @@
-# 线上：docker load 镜像后 docker compose up -d
-# 开发：docker build -t ozon-agent:latest . && docker save ozon-agent:latest | gzip > /nas/ozon-agent.tar.gz
+# 线上：docker load < /cephfs/ozon-agent.tar.gz && docker compose up -d
+# 开发：docker build -t ozon-agent:latest . && docker save ozon-agent:latest | gzip > /cephfs/ozon-agent.tar.gz
 services:
   app:
     image: ozon-agent:latest
@@ -8,6 +8,7 @@ services:
     env_file: .env
     environment:
       - PYTHONDONTWRITEBYTECODE=1  # 避免在宿主机 app/ 目录下生成 __pycache__
+    command: streamlit run app/ui/streamlit_app.py --server.address=0.0.0.0 --server.headless=true --theme.base=dark --theme.primaryColor="#FF4B4B"
     volumes:
       - ./app:/app/app   # 代码挂载：改代码不用重新 build，Streamlit 会自动检测
       - ./data:/app/data
