@@ -1,19 +1,17 @@
-"""DashScope（OpenAI 兼容模式）：图像解析直连 qwen-vl，不走 CrewAI（其对多模态输入支持不稳定）。"""
+"""DashScope：图像解析直连 qwen-vl，主图使用 wan 图生图模型。"""
 import base64
 import json
 import mimetypes
 import re
-import time
-import urllib.request
 from pathlib import Path
 
+from dashscope.aigc.image_generation import ImageGeneration
+from dashscope.api_entities.dashscope_response import Message
 from openai import OpenAI
 
 from .config import settings
 
 client = OpenAI(api_key=settings.dashscope_api_key, base_url=settings.dashscope_base_url)
-
-DASHSCOPE_API = "https://dashscope.aliyuncs.com/api/v1"
 
 # ---- 各步骤默认提示词 ----
 VISION_PROMPT = (
@@ -24,14 +22,9 @@ VISION_PROMPT = (
 )
 
 IMAGE_PROMPT_TEMPLATE = (
-    "A professional e-commerce product photo of {ptype}. "
-    "{desc}. Material: {material}. Features: {features}. "
-    "The product is centered, shot from a slight front angle, "
-    "on a pure white seamless background, soft even studio lighting, "
-    "sharp focus, high resolution. "
-    "IMPORTANT: Keep all original text, logos, brand names, and icons "
-    "that appear on the product itself — do not remove, modify, or redraw them. "
-    "Only remove watermarks, promotional stickers, and unrelated background objects."
+    "将图片中的产品放在纯白色无缝背景上，生成专业的电商白底产品主图。"
+    "保持产品本身完全不变，不要修改产品上的任何文字、标签、Logo或图标。"
+    "仅去除原有背景，不要添加任何新的文字或图案。"
 )
 
 
@@ -62,53 +55,39 @@ def parse_product_image(image_path: str, prompt: str | None = None) -> dict:
     return extract_json(resp.choices[0].message.content)
 
 
-def _dashscope_post(url: str, payload: dict, async_mode: bool = False) -> dict:
-    headers = {
-        "Authorization": f"Bearer {settings.dashscope_api_key}",
-        "Content-Type": "application/json",
-    }
-    if async_mode:
-        headers["X-DashScope-Async"] = "enable"
-    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read().decode())
+def generate_product_image(image_path: str, prompt: str | None = None) -> str:
+    """以图生图：基于原图 + 文字指令生成 Ozon 白底主图，返回图片 URL。
 
+    使用 DashScope wan 图生图模型（默认 wan2.7-image-pro），
+    传入原图 base64 + 指令，SDK 自动上传原图并同步等待结果。
+    prompt 可覆盖默认指令。
+    """
+    path = Path(image_path)
+    mime = mimetypes.guess_type(path.name)[0] or "image/jpeg"
+    b64 = base64.b64encode(path.read_bytes()).decode()
+    data_url = f"data:{mime};base64,{b64}"
 
-def _dashscope_get(url: str) -> dict:
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {settings.dashscope_api_key}"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode())
+    text = prompt or IMAGE_PROMPT_TEMPLATE
 
-
-def generate_product_image(vision_result: dict, prompt: str | None = None) -> str:
-    """通义万相生成 Ozon 白底主图，返回图片 URL。prompt 可覆盖默认模板。"""
-    desc = vision_result.get("appearance", "")
-    ptype = vision_result.get("product_type", "")
-    material = vision_result.get("material", "")
-    features = "、".join(vision_result.get("features", []))
-
-    if prompt:
-        text = prompt.format(ptype=ptype, desc=desc, material=material, features=features)
-    else:
-        text = IMAGE_PROMPT_TEMPLATE.format(ptype=ptype, desc=desc, material=material, features=features)
-
-    submit = _dashscope_post(
-        f"{DASHSCOPE_API}/services/aigc/text2image/image-synthesis",
-        {
-            "model": "wanx2.1-t2i-turbo",
-            "input": {"prompt": text},
-            "parameters": {"size": "768*1024", "n": 1},
-        },
-        async_mode=True,
+    message = Message(
+        role="user",
+        content=[
+            {"text": text},
+            {"image": data_url},
+        ],
     )
-    task_id = submit["output"]["task_id"]
 
-    for _ in range(60):  # 最多轮询 5 分钟
-        time.sleep(5)
-        result = _dashscope_get(f"{DASHSCOPE_API}/tasks/{task_id}")
-        status = result["output"]["task_status"]
-        if status == "SUCCEEDED":
-            return result["output"]["results"][0]["url"]
-        if status in ("FAILED", "UNKNOWN"):
-            raise RuntimeError(f"万相生图失败: {result.get('output', {}).get('message', status)}")
-    raise TimeoutError("万相生图超时")
+    rsp = ImageGeneration.call(
+        model=settings.wan_image_model,
+        api_key=settings.dashscope_api_key,
+        messages=[message],
+        n=1,
+    )
+
+    if rsp.status_code == 200:
+        for choice in rsp.output.choices:
+            for content in choice["message"]["content"]:
+                if content.get("type") == "image" and content.get("image"):
+                    return content["image"]
+        raise RuntimeError("图生图成功但未找到图片URL")
+    raise RuntimeError(f"图生图失败: {rsp.message or rsp}")

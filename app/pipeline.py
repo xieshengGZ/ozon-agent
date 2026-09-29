@@ -67,13 +67,12 @@ def review_task(task_id: int, approved: bool) -> None:
 
 
 def generate_image(task_id: int, prompt: str | None = None) -> None:
-    """通义万相生成 Ozon 主图，完成后置 COMPLETED。prompt 可覆盖默认模板。"""
+    """以图生图基于原图生成 Ozon 白底主图，完成后置 COMPLETED。"""
     init_db()
     try:
         with SessionLocal() as s:
             task = s.get(ListingTask, task_id)
-            vision = json.loads(task.vision_result) if task.vision_result else {}
-            url = generate_product_image(vision, prompt=prompt)
+            url = generate_product_image(task.image_path, prompt=prompt)
             task.image_url = url
             task.status = TaskStatus.COMPLETED
             s.commit()

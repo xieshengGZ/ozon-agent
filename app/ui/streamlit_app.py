@@ -70,16 +70,6 @@ st.markdown(
     .dot-done { background: #2ea043; }
     .dot-doing { background: #d29922; }
     .dot-pending { background: #484f58; }
-
-    .task-card {
-        background: #141821;
-        border: 1px solid #232836;
-        border-radius: 10px;
-        padding: 1rem 1.2rem;
-        margin-bottom: 0.6rem;
-        cursor: pointer;
-    }
-    .task-card:hover { border-color: #3a3f50; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -177,6 +167,7 @@ page = st.session_state.get("page", "list")
 if page == "new":
     st.header("新建任务")
     if st.button("← 返回列表"):
+        st.session_state.pop("task_table", None)
         st.session_state.page = "list"
         st.rerun()
     with st.form("new_task"):
@@ -212,6 +203,7 @@ elif page == "detail":
         col_back, col_title = st.columns([1, 5])
         with col_back:
             if st.button("← 返回列表"):
+                st.session_state.pop("task_table", None)
                 st.session_state.page = "list"
                 st.rerun()
         with col_title:
@@ -239,6 +231,7 @@ elif page == "detail":
 
         # 步骤 ① 图像解析
         with st.expander("① 图像解析", expanded=True):
+            st.caption(f"模型：{settings.qwen_vl_model}")
             if t.vision_result:
                 st.json(json.loads(t.vision_result))
             else:
@@ -258,6 +251,7 @@ elif page == "detail":
 
         # 步骤 ②③ 卖点 + Listing
         with st.expander("② 卖点挖掘", expanded=True):
+            st.caption(f"模型：{settings.qwen_text_model}（CrewAI）")
             if t.selling_points:
                 st.json(json.loads(t.selling_points))
             else:
@@ -271,6 +265,7 @@ elif page == "detail":
                 label_visibility="collapsed",
             )
         with st.expander("③ 俄语 Listing", expanded=True):
+            st.caption(f"模型：{settings.qwen_text_model}（CrewAI）")
             if t.listing:
                 st.json(json.loads(t.listing))
             else:
@@ -303,28 +298,25 @@ elif page == "detail":
                 review_task(t.id, approved=False)
                 st.rerun()
 
-        # 步骤 ④ Ozon 主图
-        with st.expander("④ Ozon 主图（通义万相）", expanded=True):
+        # 步骤 ④ Ozon 主图（以图生图）
+        with st.expander("④ Ozon 主图（以图生图）", expanded=True):
+            st.caption(f"模型：{settings.wan_image_model}（图生图）")
             if t.image_url:
-                st.image(t.image_url, caption="生成的 Ozon 主图", use_container_width=True)
-                st.caption(t.image_url)
+                st.image(t.image_url, caption="Ozon 白底主图", use_container_width=True)
             else:
                 st.caption("未生成")
-            st.markdown("**生图提示词（可修改，支持 {ptype} {desc} {material} {features} 占位）**")
+            st.markdown("**生图提示词（可修改）**")
             image_prompt = st.text_area(
                 "生图提示词",
                 value=IMAGE_PROMPT_TEMPLATE,
-                height=140,
+                height=100,
                 key=f"image_prompt_{t.id}",
                 label_visibility="collapsed",
             )
             if t.status not in (TaskStatus.ANALYZING, TaskStatus.IMAGE_GENERATING):
                 if st.button("重新生成主图", key=f"re_image_{t.id}"):
-                    if not t.vision_result:
-                        st.error("需要先有图像解析结果")
-                    else:
-                        rerun_image(t.id, prompt=image_prompt)
-                        st.rerun()
+                    rerun_image(t.id, prompt=image_prompt)
+                    st.rerun()
 
         # 旧版 APPROVED 兼容
         if t.status == TaskStatus.APPROVED:
@@ -403,22 +395,19 @@ else:
     else:
         for t in tasks:
             color = STATUS_COLOR[t.status]
-            with st.container():
+            with st.container(border=True):
                 st.markdown(
-                    f'<div class="task-card">'
-                    f'<div style="display:flex;justify-content:space-between;align-items:center;">'
-                    f'<span style="font-size:1.05rem;font-weight:600;">#{t.id} &nbsp; '
-                    f'<span style="color:{color};font-size:0.85rem">{STATUS_LABEL[t.status]}</span></span>'
-                    f'<span style="color:#8b949e;font-size:0.8rem">{t.created_at:%m-%d %H:%M}</span>'
-                    f'</div>'
-                    f'<div style="margin-top:0.5rem;color:#8b949e;font-size:0.85rem">'
-                    f'采购价 {t.purchase_price} 元 · {t.weight_g}g'
-                    f'</div>'
-                    f'<div style="margin-top:0.4rem;font-size:0.8rem">{_progress_line(t)}</div>'
-                    f"</div>",
+                    f'<span style="font-size:1.05rem;font-weight:600;">#{t.id} &nbsp;</span>'
+                    f'<span style="color:{color};font-size:0.85rem;">{STATUS_LABEL[t.status]}</span>'
+                    f'&nbsp;&nbsp;<span style="color:#8b949e;font-size:0.8rem;">{t.created_at:%m-%d %H:%M}</span>',
                     unsafe_allow_html=True,
                 )
-                if st.button("查看详情", key=f"view_{t.id}"):
+                st.caption(f"采购价 {t.purchase_price} 元 · {t.weight_g}g")
+                st.markdown(
+                    f'<div style="font-size:0.8rem">{_progress_line(t)}</div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button("查看详情", key=f"view_{t.id}", use_container_width=True, type="primary"):
                     st.session_state.selected_task_id = t.id
                     st.session_state.page = "detail"
                     st.rerun()

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     qwen_vl_model: str = "qwen-vl-max"
     qwen_text_model: str = "qwen-plus"
+    # 图生图模型（以原图为参考生成白底主图）
+    wan_image_model: str = "wan2.7-image-pro"
 
     # 留空则使用项目目录下 data/app.db
     database_url: str | None = None
